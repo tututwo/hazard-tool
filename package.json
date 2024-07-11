@@ -19,6 +19,7 @@
     "topojson-client": "^3.1.0"
   },
   "devDependencies": {
+    "@originjs/vite-plugin-content": "^1.0.5",
     "@types/d3": "^7.4.3",
     "typescript": "^5.2.2",
     "vite": "^5.3.1"

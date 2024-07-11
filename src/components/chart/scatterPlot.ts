@@ -1,4 +1,4 @@
-// @ts-nochec
+// @ts-nocheck
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import * as d3 from 'd3';
