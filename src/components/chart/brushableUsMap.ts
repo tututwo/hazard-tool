@@ -4,13 +4,14 @@ import { customElement, query, property } from "lit/decorators.js";
 import { brush } from "d3-brush";
 import { select } from "d3-selection";
 import { geoPath } from "d3-geo";
-import { scaleOrdinal } from 'd3-scale';
+import { scaleOrdinal } from "d3-scale";
 
 import * as topojson from "topojson-client";
 
 import { highlightedCounties } from "../../utilities/signals";
 import { SignalWatcher } from "@lit-labs/preact-signals";
 
+import { BrushController } from "../../utilities/brushController";
 @customElement("brushable-us-map")
 export class BrushableUSMap extends SignalWatcher(LitElement) {
   static styles = css`
@@ -35,42 +36,55 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
   @property({ type: Number }) height = 610;
   @property({ type: Object }) usTopoJson: any;
   @property({ type: Array })
-  highlightColors = ['#83CDBB', '#DFD65F', '#4CB4C7', '#8E8E8E', '#ff00ff'];
+  highlightColors = ["#83CDBB", "#DFD65F", "#4CB4C7", "#8E8E8E", "#ff00ff"];
   private baseContext!: CanvasRenderingContext2D;
   private highlightContext!: CanvasRenderingContext2D;
   private path!: d3.GeoPath<any, d3.GeoPermissibleObjects>;
 
   private countyFeatures: any;
   private countyBounds: Array<[[number, number], [number, number]]>;
+
+  constructor() {
+    super();
+    this.brushController = new BrushController(
+      this,
+      this.width,
+      this.height,
+      (selection) => this.highlightCounties(selection)
+    );
+  }
+
   firstUpdated() {
     this.baseContext = this.baseMapCanvas.getContext("2d")!;
     this.highlightContext = this.highlightCanvas.getContext("2d")!;
     this.path = geoPath().context(this.baseContext);
 
     this.renderBaseMap();
-    this.setupBrush();
 
     this.setupCountyData();
+    const svg = this.shadowRoot!.querySelector("svg");
+    if (svg) {
+      this.brushController.setSVG(svg);
+    }
   }
   updated(cp) {
     super.updated(cp);
     this.updateHighlight();
   }
-  
 
   updateHighlight() {
     this.highlightContext.clearRect(0, 0, this.width, this.height);
-  // Set global alpha before drawing
-  this.highlightContext.globalAlpha = 0.55; // Adjust the value to your desired alpha level (0.0 to 1.0)
+    // Set global alpha before drawing
+    this.highlightContext.globalAlpha = 0.55; // Adjust the value to your desired alpha level (0.0 to 1.0)
 
     // Create a color scale using the predefined colors
     const colorScale = scaleOrdinal(this.highlightColors);
-  
+
     this.countyFeatures.forEach((feature: any) => {
       if (highlightedCounties.value.has(feature.id)) {
         this.highlightContext.beginPath();
         this.path.context(this.highlightContext)(feature);
-        
+
         // Use the color scale to get a color for each county
         this.highlightContext.fillStyle = colorScale(feature.id);
         this.highlightContext.fill();
@@ -125,37 +139,6 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
     this.baseContext.lineWidth = 1;
     this.baseContext.strokeStyle = "#000";
     this.baseContext.stroke();
-  }
-  setupBrush() {
-    const svg = select(this.shadowRoot!.querySelector("svg"));
-    const brushInstance = brush()
-      .extent([
-        [0, 0],
-        [this.width, this.height],
-      ])
-      .on("brush", (event) => {
-        this.highlightCounties(event.selection);
-        this.dispatchEvent(
-          new CustomEvent("brush-event", {
-            detail: {
-              selection: event.selection,
-              sourceMapId: this.id,
-            },
-            bubbles: true,
-            composed: true,
-          })
-        );
-      });
-    const brushGroup = svg
-      .append("g")
-      .attr("class", "brush")
-      .call(brushInstance);
-
-    // Remove the visible brush selection rectangle
-    brushGroup.select(".selection").attr("fill", "none").attr("stroke", "none");
-
-    // Make the overlay transparent
-    brushGroup.select(".overlay").attr("fill", "none");
   }
 
   public highlightCounties(

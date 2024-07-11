@@ -13,7 +13,9 @@ import "./components/chart/scatterPlot";
 // Useful libraries
 import { feature, mesh } from "topojson-client";
 
+// import data
 import usTopoJSON from "./assets/counties-albers-10m.json";
+
 import { SignalWatcher } from "@lit-labs/preact-signals";
 /**
 
@@ -65,10 +67,7 @@ export class MyElement extends SignalWatcher(LitElement) {
           </div>
         </div>
         <div class="scatter-plot-container">
-          <risk-scatter-plot
-            @selection-change=${this.handleSelectionChange}
-            .selectedCounties=${this.selectedCounties}
-          ></risk-scatter-plot>
+          <risk-scatter-plot .data=${scatterplotData}></risk-scatter-plot>
         </div>
         <div class="table-container">
           <top-counties-table

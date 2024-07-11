@@ -12,6 +12,7 @@
     "@lit-labs/preact-signals": "^1.0.2",
     "@lit/context": "^1.1.2",
     "@lit/task": "^1.0.1",
+    "@rollup/plugin-dsv": "^3.0.4",
     "@types/topojson-client": "^3.1.4",
     "d3": "^7.9.0",
     "lit": "^3.1.4",
