@@ -11,12 +11,18 @@ import * as topojson from "topojson-client";
 import { highlightedCounties } from "../../utilities/signals";
 import { SignalWatcher } from "@lit-labs/preact-signals";
 
+// Custom controller
 import { BrushController } from "../../utilities/brushController";
+import { ResizeController } from "../../utilities/resizeController";
+
 @customElement("brushable-us-map")
 export class BrushableUSMap extends SignalWatcher(LitElement) {
   static styles = css`
     :host {
-      display: contents;
+      display: block;
+      position: relative;
+      width: 100%;
+      height: 100%;
     }
     canvas,
     svg {
@@ -46,6 +52,12 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
 
   constructor() {
     super();
+    this.resizeController = new ResizeController(this, (width, height) => {
+      // this.width = width;
+      // this.height = height;
+      console.log(this.width, this.height);
+      // this.updateCanvasAndSVG();
+    })
     this.brushController = new BrushController(
       this,
       this.width,

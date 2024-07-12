@@ -42,7 +42,12 @@ export class BrushController implements ReactiveController {
     this.svg = svg;
     this.setupBrush();
   }
-
+  updateExtent(width: number, height: number) {
+    this.brushInstance.extent([[0, 0], [width, height]]);
+    if (this.svg) {
+      select(this.svg).call(this.brushInstance);
+    }
+  }
   private setupBrush() {
     if (!this.svg) return;
 
