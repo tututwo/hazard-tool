@@ -40,7 +40,7 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
   @property({ type: Number }) height = 610;
   @property({ type: Object }) usTopoJson: any;
   @property({ type: Array })
-  highlightColors = ["#83CDBB", "#DFD65F", "#4CB4C7", "#8E8E8E", "#ff00ff"];
+  highlightColors = ["#F4D36C", "#FAA456", "#EE7850", "#D6504D", "#BA2446"];
 
   @state() private zoomLevel = 2;
 
