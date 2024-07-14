@@ -1,4 +1,6 @@
-// @ts-nocheck
+
+//@ts-nocheck
+
 import { LitElement, html, css } from "lit";
 import { customElement, query, property, state } from "lit/decorators.js";
 import { brush } from "d3-brush";

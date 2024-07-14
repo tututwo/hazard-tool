@@ -1,4 +1,6 @@
+
 // @ts-nocheck
+
 import { ReactiveController, ReactiveControllerHost } from 'lit';
 
 export class ResizeController implements ReactiveController {
