@@ -1,4 +1,6 @@
+
 //@ts-nocheck
+
 import { LitElement, html, css } from "lit";
 import { customElement, query, property, state } from "lit/decorators.js";
 import { brush } from "d3-brush";
@@ -40,6 +42,8 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
   @property({ type: Array })
   highlightColors = ["#83CDBB", "#DFD65F", "#4CB4C7", "#8E8E8E", "#ff00ff"];
 
+  @state() private zoomLevel = 2;
+
   @state() private scale = 1;
   @state() private translateX = 0;
   @state() private translateY = 0;
@@ -66,6 +70,7 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
   private handleResize = (width: number, height: number) => {
     this.width = width;
     this.height = height;
+
     const originalWidth = 975;
     const originalHeight = 610;
     const scaleX = this.width / originalWidth;
@@ -73,7 +78,7 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
     this.scale = Math.min(scaleX, scaleY);
     this.translateX = (this.width - originalWidth * this.scale) / 2;
     this.translateY = (this.height - originalHeight * this.scale) / 2;
-
+   
     this.redrawMap();
     this.brushController.updateDimensions(this.width, this.height);
   };
@@ -93,6 +98,9 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
 
   updated(changedProperties: Map<string, unknown>) {
     super.updated(changedProperties);
+    this.baseContext.imageSmoothingEnabled = true;
+    this.highlightContext.imageSmoothingEnabled = true;
+    
     if (!this.hasRendered) return;
 
     if (changedProperties.has("usTopoJson")) {
@@ -138,24 +146,27 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
     if (!this.baseContext || !this.usTopoJson) return;
 
     const pixelRatio = window.devicePixelRatio || 1;
-    this.baseContext.canvas.width = this.width * pixelRatio;
-    this.baseContext.canvas.height = this.height * pixelRatio;
-
-    this.baseContext.clearRect(0, 0, this.width, this.height);
+    const zoomedWidth = this.width * this.zoomLevel;
+    const zoomedHeight = this.height * this.zoomLevel;
+    this.baseContext.canvas.width = zoomedWidth * pixelRatio;
+    this.baseContext.canvas.height = zoomedHeight * pixelRatio;
+    this.baseContext.canvas.style.width = `${this.width}px`;
+    this.baseContext.canvas.style.height = `${this.height}px`;
+    this.baseContext.clearRect(0, 0, zoomedWidth, zoomedHeight);
 
     this.baseContext.setTransform(
-      this.scale * pixelRatio,
+      this.scale * this.zoomLevel * pixelRatio,
       0,
       0,
-      this.scale * pixelRatio,
+      this.scale * this.zoomLevel * pixelRatio,
       this.translateX * pixelRatio,
       this.translateY * pixelRatio
     );
     this.path = geoPath().context(this.baseContext);
     // Draw counties, states, and nation boundaries
-    this.drawFeature(this.usTopoJson.objects.counties, "#aaa", 0.5);
-    this.drawFeature(this.usTopoJson.objects.states, "coral", 1.5);
-    this.drawFeature(this.usTopoJson.objects.nation, "cyan", 1);
+    this.drawFeature(this.usTopoJson.objects.counties, "white", 0.5);
+    this.drawFeature(this.usTopoJson.objects.states, "#495462", 1.5);
+    this.drawFeature(this.usTopoJson.objects.nation, "grey", 1);
   }
 
   private drawFeature(feature: any, strokeColor: string, lineWidth: number) {
@@ -172,22 +183,19 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
   }
   updateHighlight() {
     const pixelRatio = window.devicePixelRatio || 1;
-    this.highlightCanvas.width = this.width * pixelRatio;
-    this.highlightCanvas.height = this.height * pixelRatio;
-    // this.highlightCanvas.style.width = `${this.width}px`;
-    // this.highlightCanvas.style.height = `${this.height}px`;
+    const zoomedWidth = this.width * this.zoomLevel;
+    const zoomedHeight = this.height * this.zoomLevel;
+    this.highlightContext.canvas.width = zoomedWidth * pixelRatio;
+    this.highlightContext.canvas.height = zoomedHeight * pixelRatio;
+    this.highlightContext.canvas.style.width = `${this.width}px`;
+    this.highlightContext.canvas.style.height = `${this.height}px`;
+    this.highlightContext.clearRect(0, 0, zoomedWidth, zoomedHeight);
 
-    this.highlightContext.clearRect(
-      0,
-      0,
-      this.width * pixelRatio,
-      this.height * pixelRatio
-    );
     this.highlightContext.setTransform(
-      this.scale * pixelRatio,
+      this.scale * this.zoomLevel * pixelRatio,
       0,
       0,
-      this.scale * pixelRatio,
+      this.scale * this.zoomLevel * pixelRatio,
       this.translateX * pixelRatio,
       this.translateY * pixelRatio
     );

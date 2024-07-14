@@ -118,6 +118,7 @@ export class MyElement extends SignalWatcher(LitElement) {
       margin: 0 auto;
       padding: 2rem;
       text-align: center;
+      background-color: #8080808c;
     }
     .maps-container {
       width: 100%;
