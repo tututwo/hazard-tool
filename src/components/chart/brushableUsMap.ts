@@ -1,21 +1,23 @@
-// @ts-nocheck
 import { LitElement, html, css } from "lit";
-import { customElement, query, property } from "lit/decorators.js";
+import { customElement, query, property, state } from "lit/decorators.js";
 import { brush } from "d3-brush";
 import { select } from "d3-selection";
 import { geoPath } from "d3-geo";
-import { scaleOrdinal } from 'd3-scale';
-
+import { scaleOrdinal } from "d3-scale";
 import * as topojson from "topojson-client";
-
 import { highlightedCounties } from "../../utilities/signals";
 import { SignalWatcher } from "@lit-labs/preact-signals";
+import { BrushController } from "../../utilities/brushController";
+import { ResizeController } from "../../utilities/resizeController";
 
 @customElement("brushable-us-map")
 export class BrushableUSMap extends SignalWatcher(LitElement) {
   static styles = css`
     :host {
-      display: contents;
+      display: block;
+      position: relative;
+      width: 100%;
+      height: 100%;
     }
     canvas,
     svg {
@@ -23,7 +25,7 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
       top: 0;
       left: 0;
     }
-    .brush.selection {
+    .brush .selection {
       fill: none;
     }
   `;
@@ -35,48 +37,87 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
   @property({ type: Number }) height = 610;
   @property({ type: Object }) usTopoJson: any;
   @property({ type: Array })
-  highlightColors = ['#83CDBB', '#DFD65F', '#4CB4C7', '#8E8E8E', '#ff00ff'];
+  highlightColors = ["#83CDBB", "#DFD65F", "#4CB4C7", "#8E8E8E", "#ff00ff"];
+
+  @state() private scale = 1;
+  @state() private translateX = 0;
+  @state() private translateY = 0;
+
   private baseContext!: CanvasRenderingContext2D;
   private highlightContext!: CanvasRenderingContext2D;
   private path!: d3.GeoPath<any, d3.GeoPermissibleObjects>;
-
   private countyFeatures: any;
   private countyBounds: Array<[[number, number], [number, number]]>;
+  private resizeController: ResizeController;
+  private brushController: BrushController;
+
+  constructor() {
+    super();
+    this.resizeController = new ResizeController(this, this.handleResize);
+    this.brushController = new BrushController(
+      this,
+      this.width,
+      this.height,
+      (selection) => this.highlightCounties(selection)
+    );
+  }
+
+  private handleResize = (width: number, height: number) => {
+    this.width = width;
+    this.height = height;
+    const originalWidth = 975;
+    const originalHeight = 610;
+    const scaleX = this.width / originalWidth;
+    const scaleY = this.height / originalHeight;
+    this.scale = Math.min(scaleX, scaleY);
+    this.translateX = (this.width - originalWidth * this.scale) / 2;
+    this.translateY = (this.height - originalHeight * this.scale) / 2;
+
+    this.redrawMap();
+    this.brushController.updateDimensions(this.width, this.height);
+  };
+
   firstUpdated() {
     this.baseContext = this.baseMapCanvas.getContext("2d")!;
     this.highlightContext = this.highlightCanvas.getContext("2d")!;
     this.path = geoPath().context(this.baseContext);
+    this.setupCountyData();
+    this.redrawMap();
+    const svg = this.shadowRoot!.querySelector("svg");
+    if (svg) {
+      this.brushController.setSVG(svg);
+    }
+    this.hasRendered = true;
+  }
+
+  updated(changedProperties: Map<string, unknown>) {
+    super.updated(changedProperties);
+    if (!this.hasRendered) return;
+
+    if (changedProperties.has("usTopoJson")) {
+      this.setupCountyData();
+      this.redrawMap();
+    } else if (
+      changedProperties.has("width") ||
+      changedProperties.has("height")
+    ) {
+      this.redrawMap();
+    } else {
+      this.updateHighlight();
+    }
+  }
+
+  private redrawMap() {
+    // const pixelRatio = window.devicePixelRatio || 1;
+    // this.baseMapCanvas.width = this.width * pixelRatio;
+    // this.baseMapCanvas.height = this.height * pixelRatio;
+    // this.baseMapCanvas.style.width = `${this.width}px`;
+    // this.baseMapCanvas.style.height = `${this.height}px`;
 
     this.renderBaseMap();
-    this.setupBrush();
-
-    this.setupCountyData();
-  }
-  updated(cp) {
-    super.updated(cp);
     this.updateHighlight();
   }
-  
 
-  updateHighlight() {
-    this.highlightContext.clearRect(0, 0, this.width, this.height);
-  // Set global alpha before drawing
-  this.highlightContext.globalAlpha = 0.55; // Adjust the value to your desired alpha level (0.0 to 1.0)
-
-    // Create a color scale using the predefined colors
-    const colorScale = scaleOrdinal(this.highlightColors);
-  
-    this.countyFeatures.forEach((feature: any) => {
-      if (highlightedCounties.value.has(feature.id)) {
-        this.highlightContext.beginPath();
-        this.path.context(this.highlightContext)(feature);
-        
-        // Use the color scale to get a color for each county
-        this.highlightContext.fillStyle = colorScale(feature.id);
-        this.highlightContext.fill();
-      }
-    });
-  }
   setupCountyData() {
     this.countyFeatures = topojson.feature(
       this.usTopoJson,
@@ -86,87 +127,105 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
       this.path.bounds(feature)
     );
   }
+
+  // renderMap() {
+  //   this.renderBaseMap();
+  //   this.updateHighlight();
+  // }
+
   renderBaseMap() {
-    this.baseContext.lineJoin = "round";
-    this.baseContext.lineCap = "round";
+    if (!this.baseContext || !this.usTopoJson) return;
 
-    // Draw counties
-    this.baseContext.beginPath();
-    this.path(
-      topojson.mesh(
-        this.usTopoJson,
-        this.usTopoJson.objects.counties,
-        (a: any, b: any) =>
-          a !== b && ((a.id / 1000) | 0) === ((b.id / 1000) | 0)
-      )
+    const pixelRatio = window.devicePixelRatio || 1;
+    this.baseContext.canvas.width = this.width * pixelRatio;
+    this.baseContext.canvas.height = this.height * pixelRatio;
+
+    this.baseContext.clearRect(0, 0, this.width, this.height);
+
+    this.baseContext.setTransform(
+      this.scale * pixelRatio,
+      0,
+      0,
+      this.scale * pixelRatio,
+      this.translateX * pixelRatio,
+      this.translateY * pixelRatio
     );
-    this.baseContext.lineWidth = 0.5;
-    this.baseContext.strokeStyle = "#aaa";
-    this.baseContext.stroke();
-
-    // Draw states
-    this.baseContext.beginPath();
-    this.path(
-      topojson.mesh(
-        this.usTopoJson,
-        this.usTopoJson.objects.states,
-        (a: any, b: any) => a !== b
-      )
-    );
-    this.baseContext.lineWidth = 0.5;
-    this.baseContext.strokeStyle = "#000";
-    this.baseContext.stroke();
-
-    // Draw nation
-    this.baseContext.beginPath();
-    this.path(
-      topojson.feature(this.usTopoJson, this.usTopoJson.objects.nation)
-    );
-    this.baseContext.lineWidth = 1;
-    this.baseContext.strokeStyle = "#000";
-    this.baseContext.stroke();
-  }
-  setupBrush() {
-    const svg = select(this.shadowRoot!.querySelector("svg"));
-    const brushInstance = brush()
-      .extent([
-        [0, 0],
-        [this.width, this.height],
-      ])
-      .on("brush", (event) => {
-        this.highlightCounties(event.selection);
-        this.dispatchEvent(
-          new CustomEvent("brush-event", {
-            detail: {
-              selection: event.selection,
-              sourceMapId: this.id,
-            },
-            bubbles: true,
-            composed: true,
-          })
-        );
-      });
-    const brushGroup = svg
-      .append("g")
-      .attr("class", "brush")
-      .call(brushInstance);
-
-    // Remove the visible brush selection rectangle
-    brushGroup.select(".selection").attr("fill", "none").attr("stroke", "none");
-
-    // Make the overlay transparent
-    brushGroup.select(".overlay").attr("fill", "none");
+    this.path = geoPath().context(this.baseContext);
+    // Draw counties, states, and nation boundaries
+    this.drawFeature(this.usTopoJson.objects.counties, "#aaa", 0.5);
+    this.drawFeature(this.usTopoJson.objects.states, "coral", 1.5);
+    this.drawFeature(this.usTopoJson.objects.nation, "cyan", 1);
   }
 
-  public highlightCounties(
-    selection: [[number, number], [number, number]] | null
-  ) {
+  private drawFeature(feature: any, strokeColor: string, lineWidth: number) {
+    this.baseContext.beginPath();
+    if (feature === this.usTopoJson.objects.nation) {
+      this.path(topojson.feature(this.usTopoJson, feature));
+    } else {
+      this.path(topojson.mesh(this.usTopoJson, feature, (a, b) => a !== b));
+    }
+    this.baseContext.lineWidth = lineWidth / this.scale;
+    this.baseContext.strokeStyle = strokeColor;
+    this.baseContext.stroke();
+   
+  }
+  updateHighlight() {
+    const pixelRatio = window.devicePixelRatio || 1;
+    this.highlightCanvas.width = this.width * pixelRatio;
+    this.highlightCanvas.height = this.height * pixelRatio;
+    // this.highlightCanvas.style.width = `${this.width}px`;
+    // this.highlightCanvas.style.height = `${this.height}px`;
+
+    this.highlightContext.clearRect(
+      0,
+      0,
+      this.width * pixelRatio,
+      this.height * pixelRatio
+    );
+    this.highlightContext.setTransform(
+      this.scale * pixelRatio,
+      0,
+      0,
+      this.scale * pixelRatio,
+      this.translateX * pixelRatio,
+      this.translateY * pixelRatio
+    );
+    this.highlightContext.globalAlpha = 0.55;
+
+    const colorScale = scaleOrdinal(this.highlightColors);
+
+    this.countyFeatures.forEach((feature: any) => {
+      if (highlightedCounties.value.has(feature.id)) {
+        this.highlightContext.beginPath();
+        this.path.context(this.highlightContext)(feature);
+        this.highlightContext.fillStyle = colorScale(feature.id);
+        this.highlightContext.fill();
+      }
+    });
+  }
+
+  highlightCounties(selection: [[number, number], [number, number]] | null) {
     if (!selection) {
       highlightedCounties.value = new Set();
       return;
     }
 
-    const [x0, y0, x1, y1] = [...selection[0], ...selection[1]];
+    // Transform the selection coordinates to match the map's coordinate system
+    const transformedSelection = [
+      [
+        (selection[0][0] - this.translateX) / this.scale,
+        (selection[0][1] - this.translateY) / this.scale,
+      ],
+      [
+        (selection[1][0] - this.translateX) / this.scale,
+        (selection[1][1] - this.translateY) / this.scale,
+      ],
+    ];
+
+    const [x0, y0, x1, y1] = [
+      ...transformedSelection[0],
+      ...transformedSelection[1],
+    ];
     const newHighlightedCounties = new Set<string>();
 
     this.countyFeatures.forEach((feature: any, index: number) => {
