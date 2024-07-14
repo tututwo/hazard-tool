@@ -63,7 +63,6 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
   }
 
   private handleResize = (width: number, height: number) => {
-    console.log("Resize triggered", width, height);
     this.width = width;
     this.height = height;
     const originalWidth = 975;
@@ -109,14 +108,11 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
   }
 
   private redrawMap() {
-
     // const pixelRatio = window.devicePixelRatio || 1;
     // this.baseMapCanvas.width = this.width * pixelRatio;
     // this.baseMapCanvas.height = this.height * pixelRatio;
     // this.baseMapCanvas.style.width = `${this.width}px`;
     // this.baseMapCanvas.style.height = `${this.height}px`;
-
-   
 
     this.renderBaseMap();
     this.updateHighlight();
@@ -139,12 +135,13 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
 
   renderBaseMap() {
     if (!this.baseContext || !this.usTopoJson) return;
-    console.log("Rendering base map");
+
     const pixelRatio = window.devicePixelRatio || 1;
     this.baseContext.canvas.width = this.width * pixelRatio;
     this.baseContext.canvas.height = this.height * pixelRatio;
 
     this.baseContext.clearRect(0, 0, this.width, this.height);
+
     this.baseContext.setTransform(
       this.scale * pixelRatio,
       0,
@@ -153,7 +150,7 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
       this.translateX * pixelRatio,
       this.translateY * pixelRatio
     );
-
+    this.path = geoPath().context(this.baseContext);
     // Draw counties, states, and nation boundaries
     this.drawFeature(this.usTopoJson.objects.counties, "#aaa", 0.5);
     this.drawFeature(this.usTopoJson.objects.states, "coral", 1.5);
@@ -170,6 +167,7 @@ export class BrushableUSMap extends SignalWatcher(LitElement) {
     this.baseContext.lineWidth = lineWidth / this.scale;
     this.baseContext.strokeStyle = strokeColor;
     this.baseContext.stroke();
+   
   }
   updateHighlight() {
     const pixelRatio = window.devicePixelRatio || 1;
