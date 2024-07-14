@@ -70,9 +70,7 @@ export class MyElement extends SignalWatcher(LitElement) {
   render() {
     return html`
       <main class="visualization-container">
-        <h1 class="bg-blue-500 text-white p-4 rounded-lg">
-          Made By <u>tu</u> Mosaic Style
-        </h1>
+   
         <div class="maps-container">
           ${this.mapDataTask.render({
             pending: () => html`<div>Loading map data...</div>`,
